@@ -1,0 +1,18 @@
+{
+  "name": "Supplementary Visuals (CPU-friendly)",
+  "nodes": [
+    {"id": "loader", "type": "ImageLoader", "params": {"path": "input.jpg"}},
+    {"id": "resize", "type": "Resize", "params": {"width": 1024, "height": 1024}},
+    {"id": "color", "type": "ColorBalance", "params": {"saturation": 1.2, "contrast": 1.1}},
+    {"id": "stylize", "type": "StylizeFilter", "params": {"filter": "soft_glow", "strength": 0.6}},
+    {"id": "overlay", "type": "OverlayText", "params": {"text": "Handmade - Size: L", "position": "bottom-right"}},
+    {"id": "save", "type": "ImageSaver", "params": {"path": "outputs/supplementary/%name%"}}
+  ],
+  "connections": [
+    ["loader", "resize"],
+    ["resize", "color"],
+    ["color", "stylize"],
+    ["stylize", "overlay"],
+    ["overlay", "save"]
+  ]
+}

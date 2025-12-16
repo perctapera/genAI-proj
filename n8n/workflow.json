@@ -1,0 +1,86 @@
+{
+  "name": "Image to Listing - Local Storage",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-listing",
+        "responseMode": "lastNode"
+      },
+      "position": [250, 300]
+    },
+    {
+      "id": "2",
+      "name": "Write Binary File",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "parameters": {
+        "filePath": "/data/uploads/{{$binary.data.fileName}}",
+        "binaryPropertyName": "data"
+      },
+      "position": [450, 300]
+    },
+    {
+      "id": "3",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "url": "http://app:8000/generate-metadata",
+        "method": "POST",
+        "responseFormat": "json",
+        "bodyContentType": "multipart-form-data",
+        "binaryPropertyName": "data",
+        "sendBinaryData": true
+      },
+      "position": [650, 300]
+    },
+    {
+      "id": "4",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "parameters": {
+        "responseCode": 200,
+        "responseData": "={{ $json }}",
+        "responseMode": "lastNode"
+      },
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Write Binary File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Binary File": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

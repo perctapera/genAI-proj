@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Product Listing Generator | Create Stunning Listings in Seconds</title>
+    <meta name="description" content="Transform product images into complete listings with AI-generated metadata, visuals, and marketing videos.">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #10b981;
+            --dark: #1f2937;
+            --light: #f9fafb;
+            --gray: #6b7280;
+            --gray-light: #e5e7eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--dark);
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header Styles */
+        .header {
+            background: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 1.5rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .brand-text h1 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 0.25rem;
+        }
+
+        .brand-text .tagline {
+            color: var(--gray);
+            font-size: 0.875rem;
+        }
+
+        .api-badge {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .api-badge:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 4rem 0 2rem;
+        }
+
+        .hero h2 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--gray);
+            max-width: 800px;
+            margin: 0 auto 2rem;
+        }
+
+        .features {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .feature {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .feature i {
+            color: var(--primary);
+            font-size: 1.25rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: var(--card-shadow);
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .card-subtitle {
+            color: var(--gray);
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        /* Form Styles */
+        .upload-area {
+            border: 3px dashed var(--gray-light);
+            border-radius: 16px;
+            padding: 3rem 2rem;
+            text-align: center;
+            margin-bottom: 2rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.02);
+        }
+
+        .upload-area i {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .upload-area h4 {
+            margin-bottom: 0.5rem;
+            color: var(--dark);
+        }
+
+        .upload-area p {
+            color: var(--gray);
+            margin-bottom: 1rem;
+        }
+
+        .btn-upload {
+            background: var(--primary);
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 10px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-upload:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        #file-preview {
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .preview-image {
+            max-width: 200px;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 640px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--dark);
+        }
+
+        input, select {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid var(--gray-light);
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        /* Button Styles */
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            flex: 1;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--light);
+            color: var(--dark);
+            border: 2px solid var(--gray-light);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Results Section */
+        .results {
+            margin-top: 3rem;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--gray-light);
+        }
+
+        .result-header i {
+            color: var(--primary);
+            font-size: 1.25rem;
+        }
+
+        .metadata-item {
+            margin-bottom: 1rem;
+        }
+
+        .metadata-item strong {
+            color: var(--dark);
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .metadata-item p {
+            color: var(--gray);
+            line-height: 1.5;
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .gallery-item {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .gallery-item:hover {
+            transform: scale(1.05);
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+        }
+
+        .video-container {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+
+        .video-container video {
+            width: 100%;
+            border-radius: 12px;
+        }
+
+        .video-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        /* Status & Loading */
+        .status {
+            padding: 1rem;
+            border-radius: 10px;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .status.success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 2px solid var(--success);
+            display: block;
+        }
+
+        .status.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border: 2px solid var(--error);
+            display: block;
+        }
+
+        .status.loading {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
+            border: 2px solid var(--primary);
+            display: block;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(99, 102, 241, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 2rem 0;
+            margin-top: 4rem;
+            color: var(--gray);
+            border-top: 2px solid var(--gray-light);
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .footer-links a {
+            color: var(--gray);
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 2rem;
+            color: var(--gray);
+            cursor: pointer;
+            z-index: 1001;
+        }
+
+        .modal-body {
+            padding: 2rem;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--dark);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--gray-light);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 1rem 0;
+            display: none;
+        }
+
+        .progress {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h2 {
+                font-size: 2rem;
+            }
+            
+            .features {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn-group {
+                flex-direction: column;
+            }
+            
+            .nav {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .api-badge {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <nav class="nav">
+                <div class="brand">
+                    <div class="logo">AI</div>
+                    <div class="brand-text">
+                        <h1>ProductGen AI</h1>
+                        <p class="tagline">Transform images into complete listings</p>
+                    </div>
+                </div>
+                <a href="#" class="api-badge">
+                    <i class="fas fa-key"></i>
+                    Add API Key for Enhanced Features
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h2>AI-Powered Product Listing Generator</h2>
+            <p>Upload a product image and watch as AI creates compelling metadata, visuals, and marketing videos in seconds. Perfect for e-commerce sellers.</p>
+            <div class="features">
+                <div class="feature">
+                    <i class="fas fa-robot"></i>
+                    <span>AI-Powered Content</span>
+                </div>
+                <div class="feature">
+                    <i class="fas fa-bolt"></i>
+                    <span>Lightning Fast</span>
+                </div>
+                <div class="feature">
+                    <i class="fas fa-palette"></i>
+                    <span>Multiple Platforms</span>
+                </div>
+                <div class="feature">
+                    <i class="fas fa-cloud"></i>
+                    <span>CPU-Friendly</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="container">
+        <div class="main-content">
+            <!-- Left Column: Input Form -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">Start Your Listing</h3>
+                        <p class="card-subtitle">Upload an image and fill in basic details</p>
+                    </div>
+                    <div class="step-indicator">Step 1 of 3</div>
+                </div>
+
+                <!-- Upload Area -->
+                <div class="upload-area" id="upload-area">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h4>Drag & Drop Product Image</h4>
+                    <p>or click to browse. Supports JPG, PNG, WebP</p>
+                    <input type="file" id="file-input" accept="image/*" hidden>
+                    <button class="btn-upload" onclick="document.getElementById('file-input').click()">
+                        <i class="fas fa-folder-open"></i> Browse Files
+                    </button>
+                    <div id="file-preview">
+                        <img src="" alt="Preview" class="preview-image">
+                        <p class="file-name"></p>
+                    </div>
+                </div>
+
+                <!-- Product Details Form -->
+                <form id="upload-form" class="upload-form">
+                    <div class="form-group">
+                        <label for="category"><i class="fas fa-tag"></i> Product Category</label>
+                        <input type="text" id="category" placeholder="e.g., Ceramic Mug, T-Shirt, Smartphone Case" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="platform"><i class="fas fa-store"></i> Target Platform</label>
+                            <select id="platform">
+                                <option value="generic">Generic E-commerce</option>
+                                <option value="etsy">Etsy</option>
+                                <option value="shopify">Shopify</option>
+                                <option value="amazon">Amazon</option>
+                                <option value="ebay">eBay</option>
+                                <option value="woocommerce">WooCommerce</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="tone"><i class="fas fa-magic"></i> Content Tone</label>
+                            <select id="tone">
+                                <option value="professional">Professional</option>
+                                <option value="friendly">Friendly & Casual</option>
+                                <option value="luxury">Luxury & Premium</option>
+                                <option value="persuasive">Persuasive</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="progress-bar" id="progress-bar">
+                        <div class="progress" id="progress"></div>
+                    </div>
+
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-primary" id="gen-meta">
+                            <i class="fas fa-wand-magic-sparkles"></i> Generate Metadata
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="gen-visuals" disabled>
+                            <i class="fas fa-images"></i> Create Visuals
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="gen-video" disabled>
+                            <i class="fas fa-video"></i> Generate Video
+                        </button>
+                    </div>
+                </form>
+
+                <div id="status" class="status"></div>
+            </div>
+
+            <!-- Right Column: Preview -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">AI Preview Panel</h3>
+                        <p class="card-subtitle">Your generated content will appear here</p>
+                    </div>
+                    <div class="preview-badge">Live Preview</div>
+                </div>
+
+                <div class="preview-content" id="preview-content">
+                    <div class="empty-state">
+                        <i class="fas fa-sparkles"></i>
+                        <h4>Nothing Generated Yet</h4>
+                        <p>Upload an image and click "Generate Metadata" to see AI magic in action!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <section class="results" id="results" style="display: none;">
+            <h2>Your Complete Listing</h2>
+            <p class="section-subtitle">All generated content ready for your store</p>
+
+            <div class="results-grid">
+                <!-- Metadata Card -->
+                <div class="result-card" id="meta-card">
+                    <div class="result-header">
+                        <i class="fas fa-file-alt"></i>
+                        <h4>Product Metadata</h4>
+                    </div>
+                    <div id="metadata"></div>
+                </div>
+
+                <!-- Visuals Card -->
+                <div class="result-card" id="visuals-card">
+                    <div class="result-header">
+                        <i class="fas fa-images"></i>
+                        <h4>Generated Visuals</h4>
+                    </div>
+                    <div id="visuals" class="gallery"></div>
+                </div>
+
+                <!-- Video Card -->
+                <div class="result-card" id="video-card">
+                    <div class="result-header">
+                        <i class="fas fa-video"></i>
+                        <h4>Marketing Video</h4>
+                    </div>
+                    <div class="video-container">
+                        <video id="preview-video" controls></video>
+                    </div>
+                    <div class="video-actions">
+                        <button class="btn btn-primary" onclick="downloadVideo()">
+                            <i class="fas fa-download"></i> Download
+                        </button>
+                        <button class="btn btn-secondary" onclick="shareVideo()">
+                            <i class="fas fa-share"></i> Share
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-links">
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+                <a href="#">Documentation</a>
+                <a href="#">Contact</a>
+            </div>
+            <p>Local demo — CPU-friendly. For production, enable OpenAI keys and storage integration.</p>
+            <p class="copyright">© 2024 ProductGen AI. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Modal -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <button class="modal-close" id="modal-close">&times;</button>
+            <div class="modal-body">
+                <img id="modal-img" src="" alt="Preview" style="width: 100%; border-radius: 12px;">
+                <div class="modal-actions" style="margin-top: 1rem;">
+                    <a id="modal-download" class="btn btn-primary" href="#" download>
+                        <i class="fas fa-download"></i> Download Image
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // DOM Elements
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const filePreview = document.getElementById('file-preview');
+        const previewImage = filePreview.querySelector('.preview-image');
+        const fileName = filePreview.querySelector('.file-name');
+        const uploadForm = document.getElementById('upload-form');
+        const genMetaBtn = document.getElementById('gen-meta');
+        const genVisualsBtn = document.getElementById('gen-visuals');
+        const genVideoBtn = document.getElementById('gen-video');
+        const statusDiv = document.getElementById('status');
+        const previewContent = document.getElementById('preview-content');
+        const resultsSection = document.getElementById('results');
+        const metaCard = document.getElementById('meta-card');
+        const visualsCard = document.getElementById('visuals-card');
+        const videoCard = document.getElementById('video-card');
+        const metadataDiv = document.getElementById('metadata');
+        const visualsDiv = document.getElementById('visuals');
+        const videoElement = document.getElementById('preview-video');
+        const progressBar = document.getElementById('progress-bar');
+        const progress = document.getElementById('progress');
+        const modal = document.getElementById('modal');
+        const modalImg = document.getElementById('modal-img');
+        const modalDownload = document.getElementById('modal-download');
+        const modalClose = document.getElementById('modal-close');
+        const toast = document.getElementById('toast');
+
+        // File Upload Handling
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = 'var(--primary)';
+            uploadArea.style.background = 'rgba(99, 102, 241, 0.05)';
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.borderColor = 'var(--gray-light)';
+            uploadArea.style.background = 'transparent';
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = 'var(--gray-light)';
+            uploadArea.style.background = 'transparent';
+            if (e.dataTransfer.files.length) {
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            if (!file.type.match('image.*')) {
+                showToast('Please select an image file', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                fileName.textContent = file.name;
+                filePreview.style.display = 'block';
+                uploadArea.innerHTML = `
+                    <i class="fas fa-check-circle" style="color: var(--success);"></i>
+                    <h4>Image Uploaded Successfully</h4>
+                    <p>Ready to generate content</p>
+                `;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Form Submission
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!fileInput.files.length) {
+                showToast('Please upload a product image first', 'error');
+                return;
+            }
+
+            showStatus('Generating metadata with AI...', 'loading');
+            showProgressBar();
+            updateProgress(30);
+            
+            // Simulate API call
+            setTimeout(() => {
+                updateProgress(100);
+                hideProgressBar();
+                showStatus('Metadata generated successfully!', 'success');
+                
+                // Enable other buttons
+                genVisualsBtn.disabled = false;
+                genVideoBtn.disabled = false;
+                
+                // Show metadata in preview
+                displayGeneratedMetadata();
+                showResultsSection();
+                
+                showToast('Metadata generated successfully!', 'success');
+            }, 2000);
+        });
+
+        // Generate Visuals
+        genVisualsBtn.addEventListener('click', () => {
+            showStatus('Generating supplementary visuals...', 'loading');
+            showProgressBar();
+            updateProgress(30);
+            
+            setTimeout(() => {
+                updateProgress(100);
+                hideProgressBar();
+                showStatus('Visuals generated successfully!', 'success');
+                displayGeneratedVisuals();
+                showToast('Visuals generated successfully!', 'success');
+            }, 3000);
+        });
+
+        // Generate Video
+        genVideoBtn.addEventListener('click', () => {
+            showStatus('Creating marketing video...', 'loading');
+            showProgressBar();
+            updateProgress(30);
+            
+            setTimeout(() => {
+                updateProgress(100);
+                hideProgressBar();
+                showStatus('Video created successfully!', 'success');
+                displayGeneratedVideo();
+                showToast('Video generated successfully!', 'success');
+            }, 4000);
+        });
+
+        // Helper Functions
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = `
+                ${type === 'loading' ? '<span class="loading-spinner"></span> ' : ''}
+                ${message}
+            `;
+        }
+
+        function showProgressBar() {
+            progressBar.style.display = 'block';
+        }
+
+        function hideProgressBar() {
+            progressBar.style.display = 'none';
+            progress.style.width = '0%';
+        }
+
+        function updateProgress(percent) {
+            progress.style.width = `${percent}%`;
+        }
+
+        function displayGeneratedMetadata() {
+            const category = document.getElementById('category').value || 'Ceramic Mug';
+            const platform = document.getElementById('platform').value;
+            
+            metadataDiv.innerHTML = `
+                <div class="metadata-item">
+                    <strong><i class="fas fa-heading"></i> Title</strong>
+                    <p>Premium ${category} - Handcrafted Design</p>
+                </div>
+                <div class="metadata-item">
+                    <strong><i class="fas fa-align-left"></i> Description</strong>
+                    <p>This beautiful ${category.toLowerCase()} features a unique design perfect for daily use. Made with premium materials and attention to detail.</p>
+                </div>
+                <div class="metadata-item">
+                    <strong><i class="fas fa-tags"></i> Keywords</strong>
+                    <p>${category.toLowerCase()}, handmade, premium, unique, ${platform}, gift, custom</p>
+                </div>
+                <div class="metadata-item">
+                    <strong><i class="fas fa-dollar-sign"></i> Price Suggestion</strong>
+                    <p>$24.99 - $34.99</p>
+                </div>
+                <div class="metadata-item">
+                    <strong><i class="fas fa-star"></i> Features</strong>
+                    <p>• Premium quality materials<br>• Unique design<br>• ${platform === 'amazon' ? 'FBA ready' : 'Ready to ship'}<br>• Customer satisfaction guaranteed</p>
+                </div>
+            `;
+            
+            previewContent.innerHTML = `
+                <div class="metadata-preview">
+                    <h4>Generated Metadata Preview</h4>
+                    <p><strong>Title:</strong> Premium ${category} - Handcrafted Design</p>
+                    <p><strong>Description:</strong> This beautiful ${category.toLowerCase()} features a unique design perfect for daily use...</p>
+                </div>
+            `;
+        }
+
+        function displayGeneratedVisuals() {
+            // Placeholders removed. When your backend returns generated image URLs,
+            // populate `visualsDiv` with those real assets.
+            visualsDiv.innerHTML = `
+                <div style="width:100%; text-align:center; color: var(--gray); padding: 1rem 0;">
+                    No visuals available yet. Integrate your image generation API to display results here.
+                </div>
+            `;
+        }
+
+        function displayGeneratedVideo() {
+            // Placeholder video removed. When a real video is generated, set `videoElement.src` to it.
+            videoElement.removeAttribute('src');
+            videoElement.load();
+        }
+
+        function showResultsSection() {
+            resultsSection.style.display = 'block';
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Modal Functions
+        function openModal(imageSrc, fileName) {
+            modalImg.src = imageSrc;
+            modalDownload.href = imageSrc;
+            modalDownload.download = fileName;
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        modalClose.addEventListener('click', () => {
+            modal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = 'auto';
+            }
+        });
+
+        // Toast Function
+        function showToast(message, type = 'info') {
+            toast.textContent = message;
+            toast.style.display = 'block';
+            toast.style.background = type === 'error' ? 'var(--error)' : 
+                                   type === 'success' ? 'var(--success)' : 'var(--dark)';
+            
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        // Video Functions
+        function downloadVideo() {
+            showToast('Video download started!', 'success');
+        }
+
+        function shareVideo() {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Check out this product video',
+                    text: 'Generated with AI Product Listing Generator',
+                    url: window.location.href
+                });
+            } else {
+                showToast('Link copied to clipboard!', 'success');
+                navigator.clipboard.writeText(window.location.href);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('AI Product Listing Generator initialized');
+        });
+    </script>
+</body>
+</html>

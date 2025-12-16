@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pillow
+openai==0.28.0
+requests
+pytest
+jinja2
+jsonschema
+pyttsx3
+httpx
