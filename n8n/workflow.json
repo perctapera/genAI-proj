@@ -17,7 +17,7 @@
       "name": "Write Binary File",
       "type": "n8n-nodes-base.writeBinaryFile",
       "parameters": {
-        "filePath": "/data/uploads/{{$binary.data.fileName}}",
+      "filePath": "={{ '/data/uploads/' + $binary.data.fileName }}",
         "binaryPropertyName": "data"
       },
       "position": [450, 300]

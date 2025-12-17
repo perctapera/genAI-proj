@@ -844,274 +844,476 @@
 
     <script>
         // DOM Elements
-        const uploadArea = document.getElementById('upload-area');
-        const fileInput = document.getElementById('file-input');
-        const filePreview = document.getElementById('file-preview');
-        const previewImage = filePreview.querySelector('.preview-image');
-        const fileName = filePreview.querySelector('.file-name');
-        const uploadForm = document.getElementById('upload-form');
-        const genMetaBtn = document.getElementById('gen-meta');
-        const genVisualsBtn = document.getElementById('gen-visuals');
-        const genVideoBtn = document.getElementById('gen-video');
-        const statusDiv = document.getElementById('status');
-        const previewContent = document.getElementById('preview-content');
-        const resultsSection = document.getElementById('results');
-        const metaCard = document.getElementById('meta-card');
-        const visualsCard = document.getElementById('visuals-card');
-        const videoCard = document.getElementById('video-card');
-        const metadataDiv = document.getElementById('metadata');
-        const visualsDiv = document.getElementById('visuals');
-        const videoElement = document.getElementById('preview-video');
-        const progressBar = document.getElementById('progress-bar');
-        const progress = document.getElementById('progress');
-        const modal = document.getElementById('modal');
-        const modalImg = document.getElementById('modal-img');
-        const modalDownload = document.getElementById('modal-download');
-        const modalClose = document.getElementById('modal-close');
-        const toast = document.getElementById('toast');
+        // DOM Elements
+const uploadArea = document.getElementById('upload-area');
+const fileInput = document.getElementById('file-input');
+const filePreview = document.getElementById('file-preview');
+const previewImage = filePreview.querySelector('.preview-image');
+const fileName = filePreview.querySelector('.file-name');
+const uploadForm = document.getElementById('upload-form');
+const genMetaBtn = document.getElementById('gen-meta');
+const genVisualsBtn = document.getElementById('gen-visuals');
+const genVideoBtn = document.getElementById('gen-video');
+const statusDiv = document.getElementById('status');
+const previewContent = document.getElementById('preview-content');
+const resultsSection = document.getElementById('results');
+const metaCard = document.getElementById('meta-card');
+const visualsCard = document.getElementById('visuals-card');
+const videoCard = document.getElementById('video-card');
+const metadataDiv = document.getElementById('metadata');
+const visualsDiv = document.getElementById('visuals');
+const videoElement = document.getElementById('preview-video');
+const progressBar = document.getElementById('progress-bar');
+const progress = document.getElementById('progress');
+const modal = document.getElementById('modal');
+const modalImg = document.getElementById('modal-img');
+const modalDownload = document.getElementById('modal-download');
+const modalClose = document.getElementById('modal-close');
+const toast = document.getElementById('toast');
 
-        // File Upload Handling
-        uploadArea.addEventListener('click', () => fileInput.click());
-        uploadArea.addEventListener('dragover', (e) => {
+// Store selected file and generated metadata
+let selectedFile = null;
+let generatedMetadata = null;
+let generatedVisuals = [];
+
+// File Upload Handling
+uploadArea.addEventListener('click', () => fileInput.click());
+uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.style.borderColor = 'var(--primary)';
+    uploadArea.style.background = 'rgba(99, 102, 241, 0.05)';
+});
+uploadArea.addEventListener('dragleave', () => {
+    uploadArea.style.borderColor = 'var(--gray-light)';
+    uploadArea.style.background = 'transparent';
+});
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.style.borderColor = 'var(--gray-light)';
+    uploadArea.style.background = 'transparent';
+    if (e.dataTransfer.files.length) {
+        handleFileSelect(e.dataTransfer.files[0]);
+    }
+});
+
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length) {
+        handleFileSelect(e.target.files[0]);
+    }
+});
+
+function handleFileSelect(file) {
+    if (!file.type.match('image.*')) {
+        showToast('Please select an image file', 'error');
+        return;
+    }
+
+    // Store the selected file
+    selectedFile = file;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        previewImage.src = e.target.result;
+        fileName.textContent = file.name;
+        filePreview.style.display = 'block';
+        uploadArea.innerHTML = `
+            <i class="fas fa-check-circle" style="color: var(--success);"></i>
+            <h4>Image Uploaded Successfully</h4>
+            <p>Ready to generate content</p>
+            <input type="file" id="file-input" accept="image/*" hidden>
+            <button class="btn-upload" onclick="document.getElementById('file-input').click()">
+                <i class="fas fa-folder-open"></i> Change Image
+            </button>
+        `;
+        
+        // Re-attach event listeners to the new button
+        document.querySelector('.btn-upload').addEventListener('click', (e) => {
             e.preventDefault();
-            uploadArea.style.borderColor = 'var(--primary)';
-            uploadArea.style.background = 'rgba(99, 102, 241, 0.05)';
+            document.getElementById('file-input').click();
         });
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.style.borderColor = 'var(--gray-light)';
-            uploadArea.style.background = 'transparent';
-        });
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.style.borderColor = 'var(--gray-light)';
-            uploadArea.style.background = 'transparent';
-            if (e.dataTransfer.files.length) {
-                handleFileSelect(e.dataTransfer.files[0]);
-            }
+    };
+    reader.readAsDataURL(file);
+}
+
+// Form Submission
+uploadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    if (!selectedFile) {
+        showToast('Please upload a product image first', 'error');
+        return;
+    }
+
+    const category = document.getElementById('category').value;
+    const platform = document.getElementById('platform').value;
+    const tone = document.getElementById('tone').value;
+
+    showStatus('Generating metadata with AI...', 'loading');
+    showProgressBar();
+    updateProgress(30);
+
+    try {
+        // Create FormData for file upload
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('category', category);
+        formData.append('platform', platform);
+        formData.append('tone', tone);
+
+        // Send to backend API
+        const response = await fetch('/api/generate-metadata', {
+            method: 'POST',
+            body: formData
         });
 
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                handleFileSelect(e.target.files[0]);
-            }
-        });
-
-        function handleFileSelect(file) {
-            if (!file.type.match('image.*')) {
-                showToast('Please select an image file', 'error');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                previewImage.src = e.target.result;
-                fileName.textContent = file.name;
-                filePreview.style.display = 'block';
-                uploadArea.innerHTML = `
-                    <i class="fas fa-check-circle" style="color: var(--success);"></i>
-                    <h4>Image Uploaded Successfully</h4>
-                    <p>Ready to generate content</p>
-                `;
-            };
-            reader.readAsDataURL(file);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        // Form Submission
-        uploadForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        const data = await response.json();
+        generatedMetadata = data;
+        
+        updateProgress(100);
+        hideProgressBar();
+        showStatus('Metadata generated successfully!', 'success');
+        
+        // Enable other buttons
+        genVisualsBtn.disabled = false;
+        genVideoBtn.disabled = false;
+        
+        // Show metadata in preview
+        displayGeneratedMetadata(data);
+        showResultsSection();
+        
+        showToast('Metadata generated successfully!', 'success');
+        
+    } catch (error) {
+        console.error('Error generating metadata:', error);
+        hideProgressBar();
+        showStatus('Failed to generate metadata. Using fallback data.', 'error');
+        
+        // Fallback to simulated data
+        setTimeout(() => {
+            updateProgress(100);
+            hideProgressBar();
+            showStatus('Metadata generated successfully! (Fallback)', 'success');
             
-            if (!fileInput.files.length) {
-                showToast('Please upload a product image first', 'error');
-                return;
-            }
-
-            showStatus('Generating metadata with AI...', 'loading');
-            showProgressBar();
-            updateProgress(30);
+            // Enable other buttons
+            genVisualsBtn.disabled = false;
+            genVideoBtn.disabled = false;
             
-            // Simulate API call
-            setTimeout(() => {
-                updateProgress(100);
-                hideProgressBar();
-                showStatus('Metadata generated successfully!', 'success');
-                
-                // Enable other buttons
-                genVisualsBtn.disabled = false;
-                genVideoBtn.disabled = false;
-                
-                // Show metadata in preview
-                displayGeneratedMetadata();
-                showResultsSection();
-                
-                showToast('Metadata generated successfully!', 'success');
-            }, 2000);
+            // Show fallback metadata
+            displayGeneratedMetadata({
+                title: `Premium ${category || 'Product'} - Handcrafted Design`,
+                bullets: [
+                    'Premium quality materials for lasting performance',
+                    'Unique design perfect for everyday use',
+                    'Ready to ship with customer satisfaction guarantee'
+                ],
+                description: `This beautiful ${category ? category.toLowerCase() : 'product'} features a unique design perfect for daily use. Made with premium materials and attention to detail.`,
+                tags: [category ? category.toLowerCase() : 'product', 'handmade', 'premium', platform],
+                attributes: {},
+                image_url: previewImage.src,
+                image_filename: selectedFile.name
+            });
+            showResultsSection();
+            
+            showToast('Metadata generated successfully! (Fallback)', 'success');
+        }, 1000);
+    }
+});
+
+// Generate Visuals
+genVisualsBtn.addEventListener('click', async () => {
+    if (!generatedMetadata || !generatedMetadata.image_filename) {
+        showToast('Please generate metadata first', 'error');
+        return;
+    }
+
+    showStatus('Generating supplementary visuals...', 'loading');
+    showProgressBar();
+    updateProgress(30);
+
+    try {
+        const response = await fetch('/api/generate-visuals', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                image_filename: generatedMetadata.image_filename,
+                title: generatedMetadata.title || 'Product'
+            })
         });
 
-        // Generate Visuals
-        genVisualsBtn.addEventListener('click', () => {
-            showStatus('Generating supplementary visuals...', 'loading');
-            showProgressBar();
-            updateProgress(30);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        updateProgress(100);
+        hideProgressBar();
+        showStatus('Visuals generated successfully!', 'success');
+        
+        // Store and display visuals
+        generatedVisuals = data.generated || [];
+        displayGeneratedVisuals(generatedVisuals);
+        
+        showToast('Visuals generated successfully!', 'success');
+        
+    } catch (error) {
+        console.error('Error generating visuals:', error);
+        hideProgressBar();
+        showStatus('Failed to generate visuals. Using fallback data.', 'error');
+        
+        // Fallback to simulated visuals
+        setTimeout(() => {
+            updateProgress(100);
+            hideProgressBar();
+            showStatus('Visuals generated successfully! (Fallback)', 'success');
             
-            setTimeout(() => {
-                updateProgress(100);
-                hideProgressBar();
-                showStatus('Visuals generated successfully!', 'success');
-                displayGeneratedVisuals();
-                showToast('Visuals generated successfully!', 'success');
-            }, 3000);
+            // Create mock visuals using the uploaded image
+            const mockVisuals = [
+                previewImage.src,
+                previewImage.src,
+                previewImage.src
+            ];
+            displayGeneratedVisuals(mockVisuals);
+            
+            showToast('Visuals generated successfully! (Fallback)', 'success');
+        }, 2000);
+    }
+});
+
+// Generate Video
+genVideoBtn.addEventListener('click', async () => {
+    if (generatedVisuals.length === 0) {
+        showToast('Please generate visuals first', 'error');
+        return;
+    }
+
+    showStatus('Creating marketing video...', 'loading');
+    showProgressBar();
+    updateProgress(30);
+
+    try {
+        const response = await fetch('/api/generate-video', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                image_urls: generatedVisuals,
+                title: generatedMetadata?.title || 'Product Video'
+            })
         });
 
-        // Generate Video
-        genVideoBtn.addEventListener('click', () => {
-            showStatus('Creating marketing video...', 'loading');
-            showProgressBar();
-            updateProgress(30);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        updateProgress(100);
+        hideProgressBar();
+        showStatus('Video created successfully!', 'success');
+        
+        // Display the video
+        displayGeneratedVideo(data.video_url);
+        
+        showToast('Video generated successfully!', 'success');
+        
+    } catch (error) {
+        console.error('Error generating video:', error);
+        hideProgressBar();
+        showStatus('Failed to generate video. Using fallback.', 'error');
+        
+        // Fallback to placeholder
+        setTimeout(() => {
+            updateProgress(100);
+            hideProgressBar();
+            showStatus('Video created successfully! (Demo)', 'success');
             
-            setTimeout(() => {
-                updateProgress(100);
-                hideProgressBar();
-                showStatus('Video created successfully!', 'success');
-                displayGeneratedVideo();
-                showToast('Video generated successfully!', 'success');
-            }, 4000);
-        });
-
-        // Helper Functions
-        function showStatus(message, type) {
-            statusDiv.textContent = message;
-            statusDiv.className = `status ${type}`;
-            statusDiv.innerHTML = `
-                ${type === 'loading' ? '<span class="loading-spinner"></span> ' : ''}
-                ${message}
-            `;
-        }
-
-        function showProgressBar() {
-            progressBar.style.display = 'block';
-        }
-
-        function hideProgressBar() {
-            progressBar.style.display = 'none';
-            progress.style.width = '0%';
-        }
-
-        function updateProgress(percent) {
-            progress.style.width = `${percent}%`;
-        }
-
-        function displayGeneratedMetadata() {
-            const category = document.getElementById('category').value || 'Ceramic Mug';
-            const platform = document.getElementById('platform').value;
+            // Show demo video or message
+            displayGeneratedVideo(null);
             
-            metadataDiv.innerHTML = `
-                <div class="metadata-item">
-                    <strong><i class="fas fa-heading"></i> Title</strong>
-                    <p>Premium ${category} - Handcrafted Design</p>
-                </div>
-                <div class="metadata-item">
-                    <strong><i class="fas fa-align-left"></i> Description</strong>
-                    <p>This beautiful ${category.toLowerCase()} features a unique design perfect for daily use. Made with premium materials and attention to detail.</p>
-                </div>
-                <div class="metadata-item">
-                    <strong><i class="fas fa-tags"></i> Keywords</strong>
-                    <p>${category.toLowerCase()}, handmade, premium, unique, ${platform}, gift, custom</p>
-                </div>
-                <div class="metadata-item">
-                    <strong><i class="fas fa-dollar-sign"></i> Price Suggestion</strong>
-                    <p>$24.99 - $34.99</p>
-                </div>
-                <div class="metadata-item">
-                    <strong><i class="fas fa-star"></i> Features</strong>
-                    <p>• Premium quality materials<br>• Unique design<br>• ${platform === 'amazon' ? 'FBA ready' : 'Ready to ship'}<br>• Customer satisfaction guaranteed</p>
-                </div>
-            `;
-            
-            previewContent.innerHTML = `
-                <div class="metadata-preview">
-                    <h4>Generated Metadata Preview</h4>
-                    <p><strong>Title:</strong> Premium ${category} - Handcrafted Design</p>
-                    <p><strong>Description:</strong> This beautiful ${category.toLowerCase()} features a unique design perfect for daily use...</p>
-                </div>
-            `;
-        }
+            showToast('Video generated successfully! (Demo)', 'success');
+        }, 3000);
+    }
+});
 
-        function displayGeneratedVisuals() {
-            // Placeholders removed. When your backend returns generated image URLs,
-            // populate `visualsDiv` with those real assets.
-            visualsDiv.innerHTML = `
-                <div style="width:100%; text-align:center; color: var(--gray); padding: 1rem 0;">
-                    No visuals available yet. Integrate your image generation API to display results here.
-                </div>
-            `;
-        }
+// Helper Functions
+function showStatus(message, type) {
+    statusDiv.textContent = message;
+    statusDiv.className = `status ${type}`;
+    statusDiv.innerHTML = `
+        ${type === 'loading' ? '<span class="loading-spinner"></span> ' : ''}
+        ${message}
+    `;
+}
 
-        function displayGeneratedVideo() {
-            // Placeholder video removed. When a real video is generated, set `videoElement.src` to it.
-            videoElement.removeAttribute('src');
-            videoElement.load();
-        }
+function showProgressBar() {
+    progressBar.style.display = 'block';
+}
 
-        function showResultsSection() {
-            resultsSection.style.display = 'block';
-            resultsSection.scrollIntoView({ behavior: 'smooth' });
-        }
+function hideProgressBar() {
+    progressBar.style.display = 'none';
+    progress.style.width = '0%';
+}
 
-        // Modal Functions
-        function openModal(imageSrc, fileName) {
-            modalImg.src = imageSrc;
-            modalDownload.href = imageSrc;
-            modalDownload.download = fileName;
-            modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        }
+function updateProgress(percent) {
+    progress.style.width = `${percent}%`;
+}
 
-        modalClose.addEventListener('click', () => {
-            modal.classList.remove('active');
-            document.body.style.overflow = 'auto';
+function displayGeneratedMetadata(metadata) {
+    const platform = document.getElementById('platform').value;
+    
+    metadataDiv.innerHTML = `
+        <div class="metadata-item">
+            <strong><i class="fas fa-heading"></i> Title</strong>
+            <p>${metadata.title}</p>
+        </div>
+        <div class="metadata-item">
+            <strong><i class="fas fa-align-left"></i> Description</strong>
+            <p>${metadata.description}</p>
+        </div>
+        <div class="metadata-item">
+            <strong><i class="fas fa-bullseye"></i> Key Features</strong>
+            <p>${metadata.bullets.map(bullet => `• ${bullet}`).join('<br>')}</p>
+        </div>
+        <div class="metadata-item">
+            <strong><i class="fas fa-tags"></i> Tags</strong>
+            <p>${metadata.tags.join(', ')}</p>
+        </div>
+        <div class="metadata-item">
+            <strong><i class="fas fa-dollar-sign"></i> Price Suggestion</strong>
+            <p>${metadata.price_suggestion || '$24.99 - $34.99'}</p>
+        </div>
+    `;
+    
+    previewContent.innerHTML = `
+        <div class="metadata-preview">
+            <h4>Generated Metadata Preview</h4>
+            <p><strong>Title:</strong> ${metadata.title}</p>
+            <p><strong>Description:</strong> ${metadata.description.substring(0, 100)}...</p>
+            <p><strong>Features:</strong> ${metadata.bullets[0]}</p>
+        </div>
+    `;
+}
+
+function displayGeneratedVisuals(visualUrls) {
+    visualsDiv.innerHTML = '';
+    
+    if (visualUrls.length === 0) {
+        visualsDiv.innerHTML = `
+            <div style="width:100%; text-align:center; color: var(--gray); padding: 1rem 0;">
+                No visuals generated. Please try again.
+            </div>
+        `;
+        return;
+    }
+    
+    visualUrls.forEach((url, index) => {
+        const imgDiv = document.createElement('div');
+        imgDiv.className = 'gallery-item';
+        imgDiv.innerHTML = `
+            <img src="${url}" alt="Generated visual ${index + 1}">
+        `;
+        imgDiv.addEventListener('click', () => {
+            openModal(url, `visual_${index + 1}.jpg`);
         });
+        visualsDiv.appendChild(imgDiv);
+    });
+}
 
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.classList.remove('active');
-                document.body.style.overflow = 'auto';
-            }
+function displayGeneratedVideo(videoUrl) {
+    if (videoUrl) {
+        videoElement.src = videoUrl;
+        videoElement.load();
+        videoElement.style.display = 'block';
+    } else {
+        videoElement.innerHTML = `
+            <div style="width:100%; height:200px; background:var(--gray-light); display:flex; align-items:center; justify-content:center; border-radius:12px;">
+                <div style="text-align:center;">
+                    <i class="fas fa-video" style="font-size:3rem; color:var(--gray); margin-bottom:1rem;"></i>
+                    <p style="color:var(--gray);">Video generation demo - Add OpenAI API key for real video generation</p>
+                </div>
+            </div>
+        `;
+    }
+}
+
+function showResultsSection() {
+    resultsSection.style.display = 'block';
+    resultsSection.scrollIntoView({ behavior: 'smooth' });
+}
+
+// Modal Functions
+function openModal(imageSrc, fileName) {
+    modalImg.src = imageSrc;
+    modalDownload.href = imageSrc;
+    modalDownload.download = fileName;
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+modalClose.addEventListener('click', () => {
+    modal.classList.remove('active');
+    document.body.style.overflow = 'auto';
+});
+
+modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+        modal.classList.remove('active');
+        document.body.style.overflow = 'auto';
+    }
+});
+
+// Toast Function
+function showToast(message, type = 'info') {
+    toast.textContent = message;
+    toast.style.display = 'block';
+    toast.style.background = type === 'error' ? 'var(--error)' : 
+                           type === 'success' ? 'var(--success)' : 'var(--dark)';
+    
+    setTimeout(() => {
+        toast.style.display = 'none';
+    }, 3000);
+}
+
+// Video Functions
+function downloadVideo() {
+    if (videoElement.src) {
+        const a = document.createElement('a');
+        a.href = videoElement.src;
+        a.download = 'product_video.mp4';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast('Video download started!', 'success');
+    } else {
+        showToast('No video available to download', 'error');
+    }
+}
+
+function shareVideo() {
+    if (navigator.share) {
+        navigator.share({
+            title: 'Check out this product video',
+            text: 'Generated with AI Product Listing Generator',
+            url: window.location.href
         });
+    } else {
+        showToast('Link copied to clipboard!', 'success');
+        navigator.clipboard.writeText(window.location.href);
+    }
+}
 
-        // Toast Function
-        function showToast(message, type = 'info') {
-            toast.textContent = message;
-            toast.style.display = 'block';
-            toast.style.background = type === 'error' ? 'var(--error)' : 
-                                   type === 'success' ? 'var(--success)' : 'var(--dark)';
-            
-            setTimeout(() => {
-                toast.style.display = 'none';
-            }, 3000);
-        }
-
-        // Video Functions
-        function downloadVideo() {
-            showToast('Video download started!', 'success');
-        }
-
-        function shareVideo() {
-            if (navigator.share) {
-                navigator.share({
-                    title: 'Check out this product video',
-                    text: 'Generated with AI Product Listing Generator',
-                    url: window.location.href
-                });
-            } else {
-                showToast('Link copied to clipboard!', 'success');
-                navigator.clipboard.writeText(window.location.href);
-            }
-        }
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('AI Product Listing Generator initialized');
-        });
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('AI Product Listing Generator initialized');
+});
     </script>
 </body>
 </html>

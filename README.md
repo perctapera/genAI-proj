@@ -2,10 +2,10 @@
 
 [![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/ci.yml)
 
-
 A minimal, CPU-friendly scaffold for an autonomous agent that generates e-commerce product listing metadata from images.
 
 Features
+
 - FastAPI microservice: `/generate-metadata` (image upload → structured JSON metadata)
 - Optional OpenAI integration for richer, model-generated metadata when `OPENAI_API_KEY` is set
 - Fallback rule-based generator so the demo runs without any API keys or GPU
@@ -13,17 +13,20 @@ Features
 - Basic test that uploads a generated sample image and validates JSON output
 
 Quick Start (local, no Docker)
+
 1. python -m venv .venv
 2. pip install -r requirements.txt
 3. uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 4. POST an image to `http://localhost:8000/generate-metadata` with multipart `file` and optional form fields `category` and `platform`.
 
 Docker (recommended for demo)
+
 1. Copy `.env.example` to `.env` and add any keys (optional)
 2. docker-compose up --build
 3. n8n UI will be available at `http://localhost:5678` (see `n8n/workflow.json` for an example webhook)
 
 Optional ComfyUI service
+
 - To include the optional ComfyUI placeholder server (CPU-friendly), run: `docker compose --profile comfyui up --build`.
 - The placeholder server is a lightweight Flask app that serves node graphs and screenshots (see `services/comfyui/`). For production or GPU-powered visual model runs, replace this service with a full ComfyUI container or custom Dockerfile supporting GPUs.
 - When active, the placeholder is available at `http://localhost:8188/` and can be used to view node graphs and documentation.
@@ -38,18 +41,22 @@ n8n local workflow (file-storage example) ✅
   - The workflow responds to the original webhook caller with the JSON returned from the microservice.
 
 Demo script
+
 - Use `scripts/send_to_n8n.py` to POST a sample image to `http://localhost:5678/webhook/generate-listing` and print the microservice response.
+- To import the included workflow into a running n8n instance non-interactively, run `python scripts/import_n8n_workflow.py --url http://localhost:5678` (if you enabled basic auth in n8n, set `N8N_USER`/`N8N_PASSWORD` env vars or supply `--user`/`--password`).
 
 Web UI
+
 - Visit `http://localhost:8000/` to use the included web UI. Features:
   - Upload an image and generate metadata
   - Generate supplementary visuals (uses local PIL fallback)
   - Create a slideshow video (requires `ffmpeg` on PATH; the Docker image now installs `ffmpeg` during build)
 
 Troubleshooting
+
 - If `pip install -r requirements.txt` fails, ensure you're using a supported Python 3.9+ interpreter and a virtualenv:
   - python -m venv .venv
-  - .\.venv\Scripts\activate    (Windows PowerShell: `.\.venv\Scripts\Activate.ps1`)
+  - .\.venv\Scripts\activate (Windows PowerShell: `.\.venv\Scripts\Activate.ps1`)
   - python -m pip install --upgrade pip setuptools wheel
   - pip install -r requirements.txt
 - If `ffmpeg` is not found (video generation will fail), install it:
@@ -61,14 +68,15 @@ Troubleshooting
 Notes
 
 Notes
+
 - The microservice contains a simple fallback generator that produces attractive, ready-to-use listing fields. When `OPENAI_API_KEY` is present, it will attempt to call the API to produce JSON; otherwise it uses the local generator.
 - This scaffold is intentionally lightweight and CPU-friendly.
 
 Next steps
+
 - Add prompt templates and prompt orchestration layers
 - Implement ComfyUI pipelines for supplementary images/videos (CPU-friendly guidance and a PIL fallback script are included)
 - Add real tokens/keys handling and cloud storage (S3/GCS)
-
 
 ---
 

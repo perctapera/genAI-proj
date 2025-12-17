@@ -1,43 +1,52 @@
-version: '3.8'
 services:
   app:
     build: .
     ports:
       - "8000:8000"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
-      - ./:/app
-      - ./data/uploads:/app/data/uploads
-      - ./outputs:/app/outputs
+      - ./data:/data
+      - ./outputs:/data/outputs
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      PYTHONUNBUFFERED: "1"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  comfyui:
+    build:
+      context: ./services/comfyui
+    ports:
+      - "8188:8188"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8188/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   n8n:
     image: n8nio/n8n:latest
     ports:
       - "5678:5678"
     environment:
-      - N8N_BASIC_AUTH_ACTIVE=false
+      # For local dev keep basic auth off; enable in prod
+      N8N_BASIC_AUTH_ACTIVE: "false"
+      N8N_HOST: "0.0.0.0"
+      N8N_PORT: "5678"
     volumes:
       - ./n8n:/home/node/.n8n
-      # Make uploads visible to n8n so it can save directly to the shared uploads folder
-      - ./data/uploads:/data/uploads
+      # Share data folder so workflows can write to /data/uploads
+      - ./data:/data
     restart: unless-stopped
-
-  comfyui:
-    build:
-      context: .
-      dockerfile: services/comfyui/Dockerfile
-    ports:
-      - "8188:8188"
-    volumes:
-      - ./comfyui:/comfyui
-    environment:
-      - COMFYUI_MODE=cpu
-    profiles:
-      - comfyui
-    restart: unless-stopped
-
-# Usage:
-# - Standard demo: `docker compose up --build` (starts app and n8n)
-# - To include the optional ComfyUI service: `docker compose --profile comfyui up --build`
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5678/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

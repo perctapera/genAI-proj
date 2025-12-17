@@ -1,10 +1,9 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 import os
 import uuid
 import shutil
 from PIL import Image
 import json
-import random
 import logging
 from .prompting import generate_structured_metadata
 from pathlib import Path
@@ -16,14 +15,30 @@ except Exception:
 
 app = FastAPI(title="AI Product Listing Generator - Microservice")
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
-UPLOAD_DIR = os.path.join(PROJECT_ROOT, "data", "uploads")
-OUTPUTS_DIR = os.path.join(PROJECT_ROOT, "outputs")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(OUTPUTS_DIR, exist_ok=True)
+# Use /data directory for persistent storage in Docker
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPLOAD_DIR = "/data/uploads"
+OUTPUTS_DIR = "/data/outputs"
 
-# Mount static and upload folders
+# Create directories if they don't exist
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(os.path.join(OUTPUTS_DIR, "videos"), exist_ok=True)
+os.makedirs(os.path.join(OUTPUTS_DIR, "images"), exist_ok=True)
+os.makedirs(os.path.join(OUTPUTS_DIR, "supplementary"), exist_ok=True)
+os.makedirs(os.path.join(OUTPUTS_DIR, "audio"), exist_ok=True)
+
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount static and data directories
 app.mount("/static", StaticFiles(directory=os.path.join(PROJECT_ROOT, "static")), name="static")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.mount("/outputs", StaticFiles(directory=OUTPUTS_DIR), name="outputs")
@@ -36,11 +51,12 @@ def save_upload_file(upload_file: UploadFile) -> str:
     path = os.path.join(UPLOAD_DIR, filename)
     with open(path, "wb") as buffer:
         shutil.copyfileobj(upload_file.file, buffer)
-    return path
+    return filename  # Return just the filename, not full path
 
 
-def analyze_image(path: str) -> dict:
-    with Image.open(path) as img:
+def analyze_image(filename: str) -> dict:
+    full_path = os.path.join(UPLOAD_DIR, filename)
+    with Image.open(full_path) as img:
         return {"width": img.width, "height": img.height, "mode": img.mode, "format": getattr(img, "format", "unknown")}
 
 
@@ -48,20 +64,14 @@ from .validation import is_valid_metadata, repair_with_openai, METADATA_SCHEMA
 
 
 def fallback_generate_metadata(info: dict, category: str | None = None, platform: str = "generic") -> dict:
-    """Wrapper that defers to the template-driven generator in `app.prompting`.
-
-    Keeps behavior CPU-friendly and deterministic for the demo.
-    """
+    """Wrapper that defers to the template-driven generator in `prompting`."""
     meta = generate_structured_metadata(info, category=category, platform=platform)
     meta["ai_used"] = False
     return meta
 
 
 async def try_ai_generate(prompt: str) -> dict | None:
-    """Attempt to generate JSON via OpenAI and validate/repair it to match METADATA_SCHEMA.
-
-    Returns the parsed JSON dict if successful, otherwise None.
-    """
+    """Attempt to generate JSON via OpenAI and validate/repair it to match METADATA_SCHEMA."""
     ai_text = await openai_generate(prompt)
     if not ai_text:
         return None
@@ -115,6 +125,7 @@ async def openai_generate(prompt: str) -> str | None:
 
 @app.get("/health")
 def health():
+    # Keep response minimal to match tests and healthcheck expectations
     return {"status": "ok"}
 
 
@@ -126,177 +137,254 @@ TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 jinja_env = Environment(loader=FileSystemLoader(TEMPLATES_DIR))
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 def index(request: Request):
-    tpl = jinja_env.get_template("index.html")
-    return tpl.render()
+    """Serve the main UI from the templates directory.
+
+    The previous implementation tried to open "index.html" from the CWD,
+    which fails in Docker where the working directory is /app. Use the
+    configured Jinja2 loader rooted at app/templates instead.
+    """
+    template = jinja_env.get_template("index.html")
+    return HTMLResponse(content=template.render())
 
 
 @app.post("/api/generate-visuals")
 async def api_generate_visuals(payload: dict):
-    """Accepts JSON: {"image_path": "<path>", "title": "..."} Returns JSON with generated file URLs (served under /outputs).
-    """
-    from scripts.generate_supplementary_visuals import generate_variants
-    image_path = payload.get("image_path")
+    """Generate supplementary visuals for a product image."""
+    # Accept multiple input shapes for backwards/forwards compatibility
+    image_filename = payload.get("image_filename")
+    image_path = payload.get("image_path") or payload.get("image_url")
     title = payload.get("title", "Product")
-    if not image_path:
-        return {"error": "image_path is required"}, 400
-    # If the image path is from a local absolute or relative path, normalize; if it points to uploads, resolve
-    if image_path.startswith("/") or image_path.startswith("\\") or os.path.isabs(image_path):
-        abs_path = image_path
-        if image_path.startswith("/uploads/"):
-            abs_path = os.path.join(PROJECT_ROOT, image_path.lstrip("/"))
-    else:
-        # Assume it's a path to a file saved in uploads (e.g., c:\... or data/uploads/...)
-        abs_path = image_path
-    # Allow passing either the stored path or just filename
-    attempted = []
-    if not os.path.exists(abs_path):
-        # try with uploads dir
-        try_path = os.path.join(UPLOAD_DIR, os.path.basename(image_path))
-        attempted.append(try_path)
-        if os.path.exists(try_path):
-            abs_path = try_path
+    
+    if not image_filename:
+        if image_path:
+            image_filename = os.path.basename(image_path)
         else:
-            # also try common Docker-mounted path (/data/uploads)
-            docker_path = os.path.join('/data/uploads', os.path.basename(image_path))
-            attempted.append(docker_path)
-            if os.path.exists(docker_path):
-                abs_path = docker_path
-            else:
-                logger.error("generate-visuals: image not found. attempted: %s", attempted)
-                return {"error": f"image not found: {image_path}", "attempted": attempted}, 404
+            raise HTTPException(status_code=400, detail="image_filename or image_path is required")
+    
+    image_path = os.path.join(UPLOAD_DIR, image_filename)
+    
+    if not os.path.exists(image_path):
+        raise HTTPException(status_code=404, detail=f"Image not found: {image_filename}")
+    
     outdir = os.path.join(OUTPUTS_DIR, "supplementary")
     os.makedirs(outdir, exist_ok=True)
-    # If an OpenAI API key is present, attempt to generate variations using the image edit endpoint
-    from app.openai_utils import generate_variations_from_image
+    
     generated = []
+    
+    # Try OpenAI variations if API key is available
     if os.getenv('OPENAI_API_KEY'):
         try:
-            prompt_hint = f"Create {5} product-focused variations of the provided image, keep the main subject consistent and present the item on a clean background. Title: {title}"
-            generated = generate_variations_from_image(abs_path, prompt=prompt_hint, n=5, size="1024x1024", outdir=outdir)
-        except Exception:
-            logger.exception("openai variations failed; falling back to local PIL variants")
+            from .openai_utils import generate_variations_from_image
+            prompt_hint = f"Create product-focused variations of the provided image, keep the main subject consistent and present the item on a clean background. Title: {title}"
+            generated = generate_variations_from_image(image_path, prompt=prompt_hint, n=5, size="1024x1024", outdir=outdir)
+        except Exception as e:
+            logger.exception("OpenAI variations failed: %s", e)
             generated = []
-
+    
+    # Fallback to local PIL variants
     if not generated:
         try:
-            generated = generate_variants(Path(abs_path), Path(outdir), title=title, frames=5)
+            # Simple image manipulation as fallback
+            from PIL import Image, ImageEnhance, ImageFilter
+            import random
+            
+            img = Image.open(image_path)
+            
+            # Create variations
+            for i in range(5):
+                variant = img.copy()
+                
+                # Apply random transformations
+                # Random crop
+                width, height = variant.size
+                left = random.randint(0, width // 4)
+                top = random.randint(0, height // 4)
+                right = width - random.randint(0, width // 4)
+                bottom = height - random.randint(0, height // 4)
+                variant = variant.crop((left, top, right, bottom))
+                
+                # Resize back to original
+                variant = variant.resize((width, height), Image.Resampling.LANCZOS)
+                
+                # Random color adjustments
+                if random.random() > 0.5:
+                    enhancer = ImageEnhance.Brightness(variant)
+                    variant = enhancer.enhance(random.uniform(0.8, 1.2))
+                
+                if random.random() > 0.5:
+                    enhancer = ImageEnhance.Contrast(variant)
+                    variant = enhancer.enhance(random.uniform(0.8, 1.2))
+                
+                if random.random() > 0.5:
+                    enhancer = ImageEnhance.Color(variant)
+                    variant = enhancer.enhance(random.uniform(0.8, 1.2))
+                
+                # Add background if transparent
+                if variant.mode in ('RGBA', 'LA') or (variant.mode == 'P' and 'transparency' in variant.info):
+                    background = Image.new('RGB', variant.size, (255, 255, 255))
+                    if variant.mode == 'RGBA':
+                        background.paste(variant, mask=variant.split()[3])
+                    else:
+                        background.paste(variant)
+                    variant = background
+                
+                # Save the variant
+                output_path = os.path.join(outdir, f"variant_{uuid.uuid4().hex[:8]}_{i}.jpg")
+                variant.save(output_path, "JPEG", quality=85)
+                generated.append(output_path)
+                
         except Exception as e:
-            logger.exception("visual generation failed for %s", abs_path)
-            return {"error": "visual generation failed", "details": str(e)}, 500
-
-    # return web-accessible URLs (relative to server root)
-    web_paths = [os.path.relpath(p, PROJECT_ROOT).replace('\\', '/') for p in generated]
-    return {"generated": web_paths}
+            logger.exception("Local visual generation failed: %s", e)
+            raise HTTPException(status_code=500, detail=f"Visual generation failed: {str(e)}")
+    
+    # Return web-accessible URLs
+    web_paths = []
+    for p in generated:
+        # Get filename only for web path
+        filename = os.path.basename(p)
+        web_paths.append(f"/outputs/supplementary/{filename}")
+    
+    return {"success": True, "generated": web_paths}
 
 
 @app.post("/api/generate-video")
 async def api_generate_video(payload: dict):
-    """Create a slideshow video. Can accept either `frames` (list of frame paths), or a `prompt` to generate images via OpenAI.
-
-    Optional keys:
-      - frames: list of image paths
-      - prompt: text prompt to generate images (requires OPENAI_API_KEY)
-      - tts: text to synthesize narration (optional)
-      - fps: frames per second (default 2)
-    """
-    from app.openai_utils import generate_images
-    from app.video_utils import create_tts_audio, create_silent_audio, make_video_from_frames
-
-    frames = payload.get("frames") or []
-    prompt = payload.get("prompt")
-    tts = payload.get("tts")
-    fps = int(payload.get("fps", 2))
-
-    # If prompt provided and no frames, generate images
-    if not frames and prompt:
-        try:
-            img_outdir = os.path.join(OUTPUTS_DIR, "images")
-            generated_imgs = generate_images(prompt, n=5, outdir=img_outdir)
-            frames = generated_imgs
-        except Exception as e:
-            logger.exception("openai image generation failed")
-            return {"error": "openai image generation failed", "details": str(e)}, 500
-
-    if not frames:
-        return {"error": "frames or prompt required"}, 400
-
-    # Resolve frame absolute paths
-    abs_frames = []
-    for f in frames:
-        p = f
-        if p.startswith("/outputs/"):
-            p = os.path.join(PROJECT_ROOT, p.lstrip("/"))
-        if not os.path.exists(p):
-            p = os.path.join(OUTPUTS_DIR, os.path.basename(p))
-        if not os.path.exists(p):
-            return {"error": f"frame not found: {f}"}, 404
-        abs_frames.append(p)
-
-    # Prepare audio: attempt TTS, else generate silent audio of appropriate duration
-    audio_path = None
-    if tts:
-        try:
-            audio_out = os.path.join(OUTPUTS_DIR, "audio")
-            os.makedirs(audio_out, exist_ok=True)
-            audio_path = os.path.join(audio_out, f"tts_{uuid.uuid4().hex[:8]}.mp3")
-            create_tts_audio(tts, audio_path)
-        except Exception as e:
-            logger.warning("TTS failed: %s; falling back to silent audio", e)
+    """Create a slideshow video from images."""
+    # Accept both 'frames' and 'image_urls'
+    image_urls = payload.get("frames") or payload.get("image_urls") or []
+    title = payload.get("title", "Product Video")
+    
+    if not image_urls:
+        raise HTTPException(status_code=400, detail="image_urls is required")
+    
+    # For Docker, we need to handle both local paths and URLs
+    frame_paths = []
+    
+    for i, url in enumerate(image_urls):
+        if url.startswith('/outputs/') or url.startswith('/uploads/'):
+            # Local file in Docker volume
+            local_path = f"/data{url}"  # Convert web path to Docker path
+            if os.path.exists(local_path):
+                frame_paths.append(local_path)
+            else:
+                logger.warning(f"File not found: {local_path}")
+        else:
+            # Handle data URLs or external URLs
             try:
-                audio_path = os.path.join(OUTPUTS_DIR, "audio", f"silent_{uuid.uuid4().hex[:8]}.mp3")
-                # estimate duration roughly by frames/fps
-                duration = max(1, int(len(abs_frames) / max(1, fps)))
-                create_silent_audio(audio_path, duration=duration)
-            except Exception as e2:
-                logger.warning("Silent audio generation failed: %s; proceeding without audio", e2)
-                audio_path = None
-    else:
-        # no TTS, but create short silent audio so videos have an audio track (optional)
-        try:
-            audio_path = os.path.join(OUTPUTS_DIR, "audio", f"silent_{uuid.uuid4().hex[:8]}.mp3")
-            os.makedirs(os.path.dirname(audio_path), exist_ok=True)
-            duration = max(1, int(len(abs_frames) / max(1, fps)))
-            create_silent_audio(audio_path, duration=duration)
-        except Exception:
-            audio_path = None
-
-    # Build video
+                import requests
+                import tempfile
+                
+                if url.startswith('data:'):
+                    # Handle data URL
+                    import base64
+                    header, encoded = url.split(',', 1)
+                    data = base64.b64decode(encoded)
+                    
+                    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+                        f.write(data)
+                        frame_paths.append(f.name)
+                else:
+                    # Handle HTTP URL
+                    response = requests.get(url, timeout=10)
+                    response.raise_for_status()
+                    
+                    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+                        f.write(response.content)
+                        frame_paths.append(f.name)
+            except Exception as e:
+                logger.error(f"Failed to process image {url}: {e}")
+    
+    if not frame_paths:
+        raise HTTPException(status_code=400, detail="No valid images to create video")
+    
+    # Create video
     try:
+        from .video_utils import make_video_from_frames
+        
         out_videos = os.path.join(OUTPUTS_DIR, "videos")
         os.makedirs(out_videos, exist_ok=True)
-        out_path = os.path.join(out_videos, f"slideshow_{uuid.uuid4().hex[:8]}.mp4")
-        final = make_video_from_frames(abs_frames, out_path, fps=fps, audio_path=audio_path)
+        out_path = os.path.join(out_videos, f"video_{uuid.uuid4().hex[:8]}.mp4")
+        
+        # Create video with frames
+        final_path = make_video_from_frames(frame_paths, out_path, fps=2, audio_path=None)
+        
+        # Clean up temp files
+        for path in frame_paths:
+            if path.startswith('/tmp/'):
+                try:
+                    os.unlink(path)
+                except:
+                    pass
+        
+        # Return web-accessible URL
+        filename = os.path.basename(final_path)
+        web_url = f"/outputs/videos/{filename}"
+        
+        return {"success": True, "video_url": web_url}
+        
     except Exception as e:
-        logger.exception("video generation failed")
-        return {"error": "video generation failed", "details": str(e)}, 500
+        logger.exception("Video generation failed: %s", e)
+        # Clean up temp files on error
+        for path in frame_paths:
+            if path.startswith('/tmp/'):
+                try:
+                    os.unlink(path)
+                except:
+                    pass
+        raise HTTPException(status_code=500, detail=f"Video generation failed: {str(e)}")
 
-    web_path = os.path.relpath(final, PROJECT_ROOT).replace('\\', '/')
-    return {"video_url": '/' + web_path}
 
+# Primary endpoint used by the frontend
 @app.post("/generate-metadata")
-async def generate_metadata(file: UploadFile = File(...), category: str | None = Form(None), platform: str = Form("generic")):
+async def api_generate_metadata(
+    file: UploadFile = File(...),
+    category: str = Form(None),
+    platform: str = Form("generic"),
+    tone: str = Form("professional")
+):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
-    path = save_upload_file(file)
-    info = analyze_image(path)
+    
+    filename = save_upload_file(file)
+    info = analyze_image(filename)
 
+    # Generate metadata using OpenAI or fallback
     prompt = (
         f"Produce a JSON object with keys: title (short string), bullets (array of 3 concise bullet points),"
         f" description (short marketing paragraph), tags (array), and attributes (object), based on the following image metadata:"
         f" width={info['width']}, height={info['height']}, format={info['format']}, mode={info['mode']}."
-        f" Category: {category or 'N/A'}. Platform: {platform}."
+        f" Category: {category or 'N/A'}. Platform: {platform}. Tone: {tone}."
         f" The JSON must conform to this schema: {json.dumps(METADATA_SCHEMA)}. Return only a single valid JSON object."
     )
 
     # Try AI-first generation + validation
     ai_result = await try_ai_generate(prompt)
     if ai_result:
-        ai_result["image_path"] = path
-        return ai_result
-
-    # Fallback if AI unavailable or failed
-    result = fallback_generate_metadata(info, category, platform)
-    result["image_path"] = path
+        result = ai_result
+    else:
+        # Fallback if AI unavailable or failed
+        result = fallback_generate_metadata(info, category, platform)
+    
+    # Add additional information
+    result["image_filename"] = filename
+    # Include fields used by both UI and tests
+    result["image_url"] = f"/uploads/{filename}"
+    result["image_path"] = f"/uploads/{filename}"
+    result["category"] = category or "Generic Product"
+    result["platform"] = platform
+    result["tone"] = tone
+    
     return result
+
+
+# Backwards-compatible alias (older clients may call the /api path)
+@app.post("/api/generate-metadata")
+async def api_generate_metadata_alias(
+    file: UploadFile = File(...),
+    category: str = Form(None),
+    platform: str = Form("generic"),
+    tone: str = Form("professional")
+):
+    return await api_generate_metadata(file=file, category=category, platform=platform, tone=tone)

@@ -11,11 +11,43 @@ const modal = document.getElementById('modal');
 const modalImg = document.getElementById('modal-img');
 const modalClose = document.getElementById('modal-close');
 const modalDownload = document.getElementById('modal-download');
+const fileInput = document.getElementById('file-input');
+const uploadArea = document.getElementById('upload-area');
+const filePreview = document.getElementById('file-preview');
+const previewImage = filePreview?.querySelector('.preview-image');
+const fileName = filePreview?.querySelector('.file-name');
+let selectedFile = null;
 let lastImagePath = null;
 let lastGeneratedVisuals = [];
 
-function showSpinner(){ spinner.style.display = 'flex' }
-function hideSpinner(){ spinner.style.display = 'none' }
+function handleFileSelect(file) {
+  if (!file.type.match('image.*')) { showToast('Please select an image file', 'error'); return; }
+  selectedFile = file;
+  const url = URL.createObjectURL(file);
+  if (previewImage) previewImage.src = url;
+  if (fileName) fileName.textContent = file.name;
+  if (filePreview) filePreview.style.display = 'block';
+  if (uploadArea) uploadArea.innerHTML = `
+    <i class="fas fa-check-circle" style="color: var(--success);"></i>
+    <h4>Image Uploaded Successfully</h4>
+    <p>Ready to generate content</p>
+    <button class="btn-upload" onclick="document.getElementById('file-input').click()">
+      <i class="fas fa-folder-open"></i> Browse Files
+    </button>`;
+  showToast('Image ready');
+  setStatus('Image ready ✅');
+}
+
+if (uploadArea && fileInput) {
+  uploadArea.addEventListener('click', ()=> fileInput.click());
+  uploadArea.addEventListener('dragover', (e)=> { e.preventDefault(); uploadArea.style.borderColor = 'var(--primary)'; uploadArea.style.background = 'rgba(99, 102, 241, 0.05)'; });
+  uploadArea.addEventListener('dragleave', ()=> { uploadArea.style.borderColor = 'var(--gray-light)'; uploadArea.style.background = 'transparent'; });
+  uploadArea.addEventListener('drop', (e)=> { e.preventDefault(); uploadArea.style.borderColor = 'var(--gray-light)'; uploadArea.style.background = 'transparent'; if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0]); });
+  fileInput.addEventListener('change', (e)=> { if (e.target.files.length) handleFileSelect(e.target.files[0]); });
+}
+
+function showSpinner(){ if (spinner) spinner.style.display = 'flex' }
+function hideSpinner(){ if (spinner) spinner.style.display = 'none' }
 function showToast(msg, timeout=3500){ toast.textContent = msg; toast.style.display='block'; setTimeout(()=>{ toast.style.display='none'; }, timeout) }
 function openModal(src){ modalImg.src = src; modal.style.display = 'flex'; modalDownload.href = src }
 modalClose?.addEventListener('click', ()=> modal.style.display='none')
@@ -28,6 +60,14 @@ form.addEventListener('submit', async (e) =>{
   setStatus('Uploading image & generating metadata...');
   showSpinner();
   const data = new FormData(form);
+  // Ensure file is included: some inputs may lack name attr or be selected via drag & drop
+  if (!data.has('file')) {
+    if (selectedFile) {
+      data.append('file', selectedFile);
+    } else if (fileInput && fileInput.files && fileInput.files.length) {
+      data.append('file', fileInput.files[0]);
+    }
+  }
   try{
     const res = await fetch('/generate-metadata', { method: 'POST', body: data });
     const payload = await res.json();
