@@ -8,8 +8,9 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "generate-listing",
-        "responseMode": "lastNode"
+        "responseMode": "responseNode"
       },
+      "webhookId": "generate-listing",
       "position": [250, 300]
     },
     {
@@ -17,7 +18,7 @@
       "name": "Write Binary File",
       "type": "n8n-nodes-base.writeBinaryFile",
       "parameters": {
-      "filePath": "={{ '/data/uploads/' + $binary.data.fileName }}",
+        "filePath": "={{ '/data/uploads/' + $binary.data.fileName }}",
         "binaryPropertyName": "data"
       },
       "position": [450, 300]
@@ -31,10 +32,79 @@
         "method": "POST",
         "responseFormat": "json",
         "bodyContentType": "multipart-form-data",
+        "bodyParameters": [
+          { "name": "category", "value": "={{ $json[\"body\"] ? $json[\"body\"]['category'] : $json['category'] }}" },
+          { "name": "platform", "value": "={{ $json[\"body\"] ? $json[\"body\"]['platform'] : $json['platform'] }}" },
+          { "name": "tone", "value": "={{ $json[\"body\"] ? $json[\"body\"]['tone'] : $json['tone'] }}" }
+        ],
         "binaryPropertyName": "data",
         "sendBinaryData": true
       },
-      "position": [650, 300]
+      "position": [600, 260]
+    },
+    {
+      "id": "7",
+      "name": "OpenAI (Describe Image)",
+      "type": "n8n-nodes-base.openAI",
+      "parameters": {
+        "resource": "chatCompletion",
+        "operation": "create",
+        "model": "gpt-4o-mini",
+        "temperature": 0.2,
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a product copywriter. Given a publicly accessible image URL, produce a compact JSON object describing the product for an online store. The JSON must NOT mention file types, filenames, or image metadata — describe the visible content only. Output EXACTLY a single JSON object with the keys: title (short), description (short marketing paragraph), bullets (array of 3 short bullet points), tags (array of keywords), price_suggestion (string: min - max). Return only JSON without surrounding text."
+          },
+          {
+            "role": "user",
+            "content": "Describe this image URL in JSON: ={{ 'http://app:8000/uploads/' + $binary.data.fileName }}"
+          }
+        ]
+      },
+      "position": [600, 400]
+    },
+    {
+      "id": "8",
+      "name": "Parse OpenAI JSON",
+      "type": "n8n-nodes-base.function",
+      "parameters": {
+        "functionCode": "// Parse OpenAI response into JSON and set item.json to the parsed object\nconst out = []\nfor (const item of items) {\n  const res = item.json;\n  let raw = null\n  // Try known response shapes\n  if (res?.choices && res.choices[0]?.message?.content) raw = res.choices[0].message.content\n  else if (res?.choices && res.choices[0]?.text) raw = res.choices[0].text\n  else if (res?.output) raw = res.output\n  if (!raw) {\n    throw new Error('OpenAI returned no text')\n  }\n  // Some nodes return JSON string with newlines; try to extract first {...}\n  const m = raw.match(/\\{[\\s\\S]*\\}/m)\n  const jsonText = m ? m[0] : raw\n  let parsed = null\n  try { parsed = JSON.parse(jsonText) } catch (e) {\n    throw new Error('Failed to parse OpenAI response as JSON: ' + e.message + '\\n' + jsonText)\n  }\n  out.push({ json: parsed })\n}\nreturn out;"
+      },
+      "position": [800, 400]
+    },
+    {
+      "id": "6",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "parameters": {
+        "mode": "mergeByIndex"
+      },
+      "position": [1000, 300]
+    },
+    {
+      "id": "5",
+      "name": "HTTP Request (Ingest)",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "url": "http://app:8000/api/ingest-edits",
+        "method": "POST",
+        "responseFormat": "json",
+        "bodyContentType": "multipart-form-data",
+        "bodyParameters": [
+          {
+            "name": "description",
+            "value": "={{ $json[\"description\"] || $json[\"title\"] || 'Generated listing' }}"
+          },
+          {
+            "name": "metadata",
+            "value": "={{ JSON.stringify($json) }}"
+          }
+        ],
+        "binaryPropertyName": "data",
+        "sendBinaryData": true
+      },
+      "position": [1200, 300]
     },
     {
       "id": "4",
@@ -45,7 +115,7 @@
         "responseData": "={{ $json }}",
         "responseMode": "lastNode"
       },
-      "position": [850, 300]
+      "position": [1400, 300]
     }
   ],
   "connections": {
@@ -68,10 +138,61 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "OpenAI (Describe Image)",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI (Describe Image)": {
+      "main": [
+        [
+          {
+            "node": "Parse OpenAI JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse OpenAI JSON": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Ingest)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Ingest)": {
       "main": [
         [
           {

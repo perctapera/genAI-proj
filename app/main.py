@@ -239,13 +239,40 @@ async def api_generate_visuals(payload: dict):
             logger.exception("Local visual generation failed: %s", e)
             raise HTTPException(status_code=500, detail=f"Visual generation failed: {str(e)}")
     
+    # Optionally remove backgrounds from generated images
+    remove_bg = payload.get("remove_background", True)
+    if remove_bg:
+        try:
+            from .image_utils import remove_background_bytes
+
+            processed = []
+            for p in generated:
+                try:
+                    with open(p, "rb") as fh:
+                        data = fh.read()
+                    out_bytes = remove_background_bytes(data)
+                    # Save as PNG to preserve alpha channel
+                    base = os.path.splitext(os.path.basename(p))[0]
+                    png_name = f"{base}.png"
+                    out_path = os.path.join(outdir, png_name)
+                    with open(out_path, "wb") as fh:
+                        fh.write(out_bytes)
+                    processed.append(out_path)
+                except Exception as e:
+                    logger.exception("Background removal failed for %s: %s", p, e)
+                    # Fall back to original
+                    processed.append(p)
+            generated = processed
+        except ImportError:
+            logger.info("rembg is not installed; skipping background removal")
+
     # Return web-accessible URLs
     web_paths = []
     for p in generated:
         # Get filename only for web path
         filename = os.path.basename(p)
         web_paths.append(f"/outputs/supplementary/{filename}")
-    
+
     return {"success": True, "generated": web_paths}
 
 
@@ -377,6 +404,109 @@ async def api_generate_metadata(
     result["tone"] = tone
     
     return result
+
+
+# Ingest edited images and a description from an external workflow (e.g., n8n)
+@app.post("/api/ingest-edits")
+async def api_ingest_edits(
+    description: str = Form(...),
+    files: list[UploadFile] = File(None),
+    metadata: str = Form(None),
+):
+    """Accept a description and one or more edited images (multipart/form-data).
+
+    Saves images under `/data/outputs/supplementary`. If `metadata` (JSON string)
+    is provided, a listing JSON is created and saved next to the images. The
+    response includes the web-accessible paths and `listing` path when created.
+    """
+    outdir = os.path.join(OUTPUTS_DIR, "supplementary")
+    os.makedirs(outdir, exist_ok=True)
+
+    saved = []
+    if files:
+        # FastAPI provides a single UploadFile when single file is sent, or list when multiple
+        if isinstance(files, UploadFile):
+            files = [files]
+        for f in files:
+            safe_name = os.path.basename(f.filename)
+            filename = f"edited_{uuid.uuid4().hex[:8]}_{safe_name}"
+            dest = os.path.join(outdir, filename)
+            with open(dest, "wb") as fh:
+                shutil.copyfileobj(f.file, fh)
+            saved.append(f"/outputs/supplementary/{filename}")
+
+    listing_path = None
+    if metadata:
+        try:
+            meta_obj = json.loads(metadata)
+        except Exception:
+            meta_obj = {"raw": metadata}
+
+        # Combine description and provided metadata
+        listing = {
+            "description": description,
+            "images": saved,
+            "metadata": meta_obj,
+        }
+
+        listing_filename = f"listing_{uuid.uuid4().hex[:8]}.json"
+        listing_dest = os.path.join(outdir, listing_filename)
+        with open(listing_dest, "w", encoding="utf-8") as fh:
+            json.dump(listing, fh, ensure_ascii=False, indent=2)
+
+        listing_path = f"/outputs/supplementary/{listing_filename}"
+
+    resp = {"description": description, "images": saved}
+    if listing_path:
+        resp["listing"] = listing_path
+
+    return resp
+
+
+@app.get("/api/listings")
+async def api_listings():
+    """Return all saved listings (JSON files) from the supplementary outputs folder."""
+    outdir = os.path.join(OUTPUTS_DIR, "supplementary")
+    listings = []
+    if os.path.exists(outdir):
+        for name in sorted(os.listdir(outdir)):
+            if name.startswith("listing_") and name.endswith(".json"):
+                path = os.path.join(outdir, name)
+                try:
+                    with open(path, "r", encoding="utf-8") as fh:
+                        data = json.load(fh)
+                    listings.append({"path": f"/outputs/supplementary/{name}", "data": data})
+                except Exception:
+                    logger.exception("Failed to read listing %s", path)
+    return {"listings": listings}
+
+
+@app.post("/api/remove-background")
+async def api_remove_background(file: UploadFile = File(...)):
+    """Remove image background and return a PNG with transparency (alpha channel).
+
+    If `rembg` is not installed, returns 501 with a helpful message.
+    """
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    data = await file.read()
+
+    try:
+        from .image_utils import remove_background_bytes
+    except ImportError:
+        raise HTTPException(status_code=501, detail="Background removal not available: 'rembg' is not installed")
+
+    try:
+        out_bytes = remove_background_bytes(data)
+    except Exception as e:
+        logger.exception("Background removal failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Background removal failed: {e}")
+
+    import io
+    from fastapi.responses import StreamingResponse
+
+    return StreamingResponse(io.BytesIO(out_bytes), media_type="image/png")
 
 
 # Backwards-compatible alias (older clients may call the /api path)

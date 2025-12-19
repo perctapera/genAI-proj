@@ -1,0 +1,5 @@
+fastapi
+pillow
+# Background removal in CI (removes backgrounds using U2-Net via rembg)
+# Note: rembg pulls in onnxruntime and can increase CI install time.
+rembg
